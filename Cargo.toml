@@ -10,7 +10,7 @@ license = "MIT"
 # Remember to also update in appveyor.yml
 version = "0.5.6"
 # Remember to also update in checksums.md
-authors = ["nabijaczleweli <nabijaczleweli@gmail.com>", "Zachary Dremann <dremann@gmail.com>"]
+authors = ["nabijaczleweli <nabijaczleweli@gmail.com>", "Zachary Dremann <dremann@gmail.com>", "yukimemi <yukimemi@gmail.com>"]
 exclude = ["*.enc"]
 
 
