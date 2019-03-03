@@ -1,5 +1,6 @@
 extern crate checksums;
 
+use std::fs::File;
 use std::io::{stderr, stdout};
 use std::process::exit;
 
@@ -11,7 +12,7 @@ fn main() {
 fn actual_main() -> i32 {
     let opts = checksums::Options::parse();
 
-    let hashes = checksums::ops::create_hashes(
+    let mut hashes = checksums::ops::create_hashes(
         &opts.dir,
         opts.ignored_files,
         opts.algorithm,
@@ -25,15 +26,17 @@ fn actual_main() -> i32 {
         println!("");
 
         match checksums::ops::read_hashes(&mut stderr(), &opts.file) {
-            Ok(loaded_hashes) => {
-                let compare_result = checksums::ops::compare_hashes(&opts.file.0, hashes, loaded_hashes);
+            Ok(mut loaded_hashes) => {
+                let compare_result = checksums::ops::compare_hashes(&opts.file.0, &mut hashes, &mut loaded_hashes);
+                checksums::ops::write_hashes(&mut stdout(), &opts.file.0, opts.algorithm, hashes);
                 checksums::ops::write_hash_comparison_results(&mut stdout(), &mut stderr(), compare_result)
             }
             Err(rval) => rval,
         }
         .exit_value()
     } else {
-        checksums::ops::write_hashes(&opts.file, opts.algorithm, hashes);
+        let mut f = File::create(&opts.file.1).unwrap();
+        checksums::ops::write_hashes(&mut f, &opts.file.0, opts.algorithm, hashes);
         0
     }
 }

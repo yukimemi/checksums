@@ -88,10 +88,10 @@ where
 }
 
 /// Serialise the specified hashes to the specified output file.
-pub fn write_hashes(out_file: &(String, PathBuf), algo: Algorithm, mut hashes: BTreeMap<String, String>) {
-    let mut out = TabWriter::new(File::create(&out_file.1).unwrap());
+pub fn write_hashes(out: &mut Write, out_file: &str, algo: Algorithm, mut hashes: BTreeMap<String, String>) {
+    let mut out = TabWriter::new(out);
 
-    hashes.insert(out_file.0.clone(), mul_str("-", algo.hexlen()));
+    hashes.insert(out_file.to_string(), mul_str("-", algo.hexlen()));
     for (fname, hash) in hashes {
         writeln!(&mut out, "{}\t{}", fname, hash).unwrap();
     }

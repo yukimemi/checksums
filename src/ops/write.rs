@@ -80,8 +80,8 @@ fn write_result<W: Write>(out: &mut W, pre: &str, fname: &str, quote: bool) {
     writeln!(out, "{}{2}{}{2}", pre, fname, quote_s).unwrap();
 }
 
-fn write_file_result_match<W: Write>(out: &mut W, fname: &str, hash: &str) {
-    writeln!(out, "File matches. \"{}\" hash: {}", fname, hash).unwrap();
+fn write_file_result_match<W: Write>(_out: &mut W, _fname: &str, _hash: &str) {
+    // writeln!(out, "File matches. \"{}\" hash: {}", fname, hash).unwrap();
 }
 
 fn write_file_result_diff<W: Write>(out: &mut W, fname: &str, lhash: &str, chash: &str) {

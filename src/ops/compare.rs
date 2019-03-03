@@ -23,8 +23,8 @@ pub enum CompareError {
 /// Compare two provided hashes.
 pub fn compare_hashes(
     out_file: &str,
-    mut current_hashes: BTreeMap<String, String>,
-    mut loaded_hashes: BTreeMap<String, String>,
+    current_hashes: &mut BTreeMap<String, String>,
+    loaded_hashes: &mut BTreeMap<String, String>,
 ) -> Result<(Vec<CompareResult>, Vec<CompareFileResult>), CompareError> {
     let current_hashes_value_len = current_hashes.iter().next().unwrap().1.len();
     let loaded_hashes_value_len = loaded_hashes.iter().next().unwrap().1.len();
@@ -51,15 +51,15 @@ pub fn compare_hashes(
         |key, _, other| !other.contains_key(key),
         CompareResult::FileAdded,
         CompareResult::FileRemoved,
-        &mut current_hashes,
-        &mut loaded_hashes,
+        current_hashes,
+        loaded_hashes,
     );
     let ignore_results = process_ignores(
         |_, value, _| *value == placeholder_value,
         CompareResult::FileIgnored,
         CompareResult::FileIgnored,
-        &mut current_hashes,
-        &mut loaded_hashes,
+        current_hashes,
+        loaded_hashes,
     );
 
     // dbg!(&current_hashes);
@@ -70,13 +70,16 @@ pub fn compare_hashes(
 
     if !current_hashes.is_empty() {
         for (key, loaded_value) in loaded_hashes {
-            let current_value = &current_hashes[&key];
-            if *current_value == loaded_value {
-                file_compare_results.push(CompareFileResult::FileMatches { file: key, hash: loaded_value });
+            let current_value = &current_hashes[key];
+            if current_value == loaded_value {
+                file_compare_results.push(CompareFileResult::FileMatches {
+                    file: key.clone(),
+                    hash: loaded_value.clone(),
+                });
             } else {
                 file_compare_results.push(CompareFileResult::FileDiffers {
-                    file: key,
-                    was_hash: loaded_value,
+                    file: key.clone(),
+                    was_hash: loaded_value.clone(),
                     new_hash: current_value.clone(),
                 });
             }
