@@ -10,15 +10,13 @@
 //! println!("{:#?}", opts);
 //! ```
 
-
-use clap::{self, App, Arg, AppSettings};
-use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
 use self::super::Algorithm;
-use std::str::FromStr;
+use clap::{self, App, AppSettings, Arg};
 use num_cpus;
+use std::collections::BTreeSet;
 use std::fs;
-
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// Representation of the application's all configurable values.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -35,6 +33,8 @@ pub struct Options {
     pub file: (String, PathBuf),
     /// Whether to recurse down symlinks. Default: `true`
     pub follow_symlinks: bool,
+    /// Whether check difference in the number of files. Default: `true`
+    pub check_count: bool,
     /// Files/directories to ignore. Default: none
     pub ignored_files: BTreeSet<String>,
     /// # of threads used for hashing.
@@ -48,29 +48,38 @@ impl Options {
     pub fn parse() -> Options {
         let matches = App::new("checksums")
             .setting(AppSettings::ColoredHelp)
+            .setting(AppSettings::DeriveDisplayOrder)
             .version(crate_version!())
             .author(crate_authors!("\n"))
             .about("Tool for making/verifying checksums of directory trees")
-            .args(&[Arg::from_usage("[DIRECTORY] 'Directory to hash/verify'").default_value(".").validator(Options::directory_validator),
-                    Arg::from_usage("--algorithm=[algorithm] -a 'Hashing algorithm to use. {n}\
-                                     Supported algorithms: SHA{1,2-{224,256,384,512},3-{256,512}}, BLAKE{,2}, CRC{64,32,16,8}, MD{5,6-{128,256,512}}, XOR8'")
-                        .next_line_help(true)
-                        .default_value("SHA1")
-                        .validator(Options::algorithm_validator),
-                    Arg::from_usage("--create -c 'Make checksums'").overrides_with("verify"),
-                    Arg::from_usage("--verify -v 'Verify checksums (default)'").overrides_with("create"),
-                    Arg::from_usage("--depth=[depth] -d 'Max recursion depth. `-1` for infinite.'. Default: don't recurse")
-                        .validator(Options::depth_validator)
-                        .overrides_with("recursive"),
-                    Arg::from_usage("--recursive -r 'Infinite recursion depth.'").overrides_with("depth"),
-                    Arg::from_usage("--file=[file] -f 'File with hashes to be read/created'").validator(Options::file_validator),
-                    Arg::from_usage("--force 'Override output file'"),
-                    Arg::from_usage("--follow-symlinks 'Recurse down symlinks. Default: yes'").overrides_with("no-follow-symlinks"),
-                    Arg::from_usage("--no-follow-symlinks 'Don\'t recurse down symlinks'").overrides_with("follow-symlinks"),
-                    Arg::from_usage("-i --ignore [file]... 'Ignore specified file(s)'"),
-                    Arg::from_usage("-j --jobs=[jobs] '# of threads used for hashing. No/empty value: # of CPU threads. -1: Infinite'")
-                        .empty_values(true)
-                        .validator(Options::jobs_validator)])
+            .args(&[
+                Arg::from_usage("[DIRECTORY] 'Directory to hash/verify'")
+                    .default_value(".")
+                    .validator(Options::directory_validator),
+                Arg::from_usage(
+                    "--algorithm=[algorithm] -a 'Hashing algorithm to use. {n}\
+                     Supported algorithms: SHA{1,2-{224,256,384,512},3-{256,512}}, BLAKE{,2}, CRC{64,32,16,8}, MD{5,6-{128,256,512}}, XOR8'",
+                )
+                .next_line_help(true)
+                .default_value("SHA1")
+                .validator(Options::algorithm_validator),
+                Arg::from_usage("--create -c 'Make checksums'").overrides_with("verify"),
+                Arg::from_usage("--verify -v 'Verify checksums (default)'").overrides_with("create"),
+                Arg::from_usage("--depth=[depth] -d 'Max recursion depth. `-1` for infinite.'. Default: don't recurse")
+                    .validator(Options::depth_validator)
+                    .overrides_with("recursive"),
+                Arg::from_usage("--recursive -r 'Infinite recursion depth.'").overrides_with("depth"),
+                Arg::from_usage("--file=[file] -f 'File with hashes to be read/created'").validator(Options::file_validator),
+                Arg::from_usage("--force 'Override output file'"),
+                Arg::from_usage("--follow-symlinks 'Recurse down symlinks. Default: yes'").overrides_with("no-follow-symlinks"),
+                Arg::from_usage("--no-follow-symlinks 'Don\'t recurse down symlinks'").overrides_with("follow-symlinks"),
+                Arg::from_usage("--check-count 'Check difference in the number of files. Default: yes'").overrides_with("no-check-count"),
+                Arg::from_usage("--no-check-count 'Don\'t check difference in the number of files'").overrides_with("check-count"),
+                Arg::from_usage("-i --ignore [file]... 'Ignore specified file(s)'"),
+                Arg::from_usage("-j --jobs=[jobs] '# of threads used for hashing. No/empty value: # of CPU threads. -1: Infinite'")
+                    .empty_values(true)
+                    .validator(Options::jobs_validator),
+            ])
             .get_matches();
 
         let dir = fs::canonicalize(matches.value_of("DIRECTORY").unwrap()).unwrap();
@@ -79,21 +88,24 @@ impl Options {
 
         if file.1.exists() && !verify && !matches.is_present("force") {
             clap::Error {
-                    message: "The output file exists and was not overridden to prevent data loss.\n\
-                              Pass the --force option to suppress this error."
-                        .to_string(),
-                    kind: clap::ErrorKind::MissingRequiredArgument,
-                    info: None,
-                }
-                .exit();
+                message: "The output file exists and was not overridden to prevent data loss.\n\
+                          Pass the --force option to suppress this error."
+                    .to_string(),
+                kind: clap::ErrorKind::MissingRequiredArgument,
+                info: None,
+            }
+            .exit();
         } else if !file.1.exists() && verify {
             clap::Error {
-                    message: format!("Can't find checksums file \"{}\".\n\
-                                      Did you mean to create it with -c?", file.0),
-                    kind: clap::ErrorKind::InvalidValue,
-                    info: None,
-                }
-                .exit();
+                message: format!(
+                    "Can't find checksums file \"{}\".\n\
+                     Did you mean to create it with -c?",
+                    file.0
+                ),
+                kind: clap::ErrorKind::InvalidValue,
+                info: None,
+            }
+            .exit();
         }
 
         Options {
@@ -104,19 +116,22 @@ impl Options {
                 None
             } else {
                 let i = matches.value_of("depth").map(|s| s.parse::<isize>().unwrap()).unwrap_or(0);
-                if i < 0 { None } else { Some(i as usize) }
+                if i < 0 {
+                    None
+                } else {
+                    Some(i as usize)
+                }
             },
             file: file,
             follow_symlinks: !matches.is_present("no-follow-symlinks"),
+            check_count: !matches.is_present("no-check-count"),
             ignored_files: matches.values_of("ignore").map(|v| v.map(String::from).collect()).unwrap_or_default(),
             jobs: match matches.value_of("jobs") {
                 None | Some("") => num_cpus::get() as usize,
-                Some(s) => {
-                    match i32::from_str(s).unwrap() {
-                        -1 => usize::max_value(),
-                        i => i as usize,
-                    }
-                }
+                Some(s) => match i32::from_str(s).unwrap() {
+                    -1 => usize::max_value(),
+                    i => i as usize,
+                },
             },
         }
     }
@@ -171,7 +186,6 @@ impl Options {
         }
     }
 
-
     fn file_process(file: Option<&str>, dir: &PathBuf) -> (String, PathBuf) {
         match file {
             Some(file) => {
@@ -184,13 +198,15 @@ impl Options {
                     file.push(".");
                 }
 
-                (file_name.to_str().unwrap().to_string(),
-                 file.canonicalize()
-                    .map(|mut p| {
-                        p.push(file_name);
-                        p
-                    })
-                    .unwrap())
+                (
+                    file_name.to_str().unwrap().to_string(),
+                    file.canonicalize()
+                        .map(|mut p| {
+                            p.push(file_name);
+                            p
+                        })
+                        .unwrap(),
+                )
             }
             None => {
                 let mut file = dir.clone();

@@ -25,6 +25,7 @@ pub fn compare_hashes(
     out_file: &str,
     current_hashes: &mut BTreeMap<String, String>,
     loaded_hashes: &mut BTreeMap<String, String>,
+    check_count: bool,
 ) -> Result<(Vec<CompareResult>, Vec<CompareFileResult>), CompareError> {
     let current_hashes_value_len = current_hashes.iter().next().unwrap().1.len();
     let loaded_hashes_value_len = loaded_hashes.iter().next().unwrap().1.len();
@@ -40,7 +41,7 @@ pub fn compare_hashes(
     current_hashes.remove(out_file);
     loaded_hashes.remove(out_file);
 
-    if current_hashes.len() != loaded_hashes.len() {
+    if current_hashes.len() != loaded_hashes.len() && check_count {
         return Err(CompareError::DifferentNumberOfFiles {
             previous_len: loaded_hashes.len(),
             current_len: current_hashes.len(),

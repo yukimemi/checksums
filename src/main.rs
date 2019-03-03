@@ -27,9 +27,12 @@ fn actual_main() -> i32 {
 
         match checksums::ops::read_hashes(&mut stderr(), &opts.file) {
             Ok(mut loaded_hashes) => {
-                let compare_result = checksums::ops::compare_hashes(&opts.file.0, &mut hashes, &mut loaded_hashes);
-                checksums::ops::write_hashes(&mut stdout(), &opts.file.0, opts.algorithm, hashes);
-                checksums::ops::write_hash_comparison_results(&mut stdout(), &mut stderr(), compare_result)
+                let compare_result = checksums::ops::compare_hashes(&opts.file.0, &mut hashes, &mut loaded_hashes, opts.check_count);
+                let err = checksums::ops::write_hash_comparison_results(&mut stdout(), &mut stderr(), compare_result);
+                if err == checksums::Error::NoError {
+                    checksums::ops::write_hashes(&mut stdout(), &opts.file.0, opts.algorithm, hashes);
+                }
+                err
             }
             Err(rval) => rval,
         }
