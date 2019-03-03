@@ -6,34 +6,37 @@
 //! Then use `write_hashes()` to save it to disk, or `read_hashes()` to get the saved hashes, them with
 //! `compare_hashes()` and print them with `write_hash_comparison_results()`.
 
-
 mod compare;
 mod write;
 
-use self::super::util::{relative_name, mul_str};
-use std::collections::{BTreeSet, BTreeMap};
-use futures_cpupool::{CpuFuture, CpuPool};
-use std::io::{BufRead, BufReader, Write};
-use self::super::{Algorithm, hash_file};
-use walkdir::{WalkDir, WalkDirIterator};
-use std::path::{PathBuf, Path};
-use tabwriter::TabWriter;
+use self::super::util::{mul_str, relative_name};
 use self::super::Error;
-use pbr::ProgressBar;
+use self::super::{hash_file, Algorithm};
 use futures::Future;
-use std::fs::File;
+use futures_cpupool::{CpuFuture, CpuPool};
 use regex::Regex;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use tabwriter::TabWriter;
+use walkdir::{WalkDir, WalkDirIterator};
 
 pub use self::compare::*;
 pub use self::write::*;
 
-
 /// Create subpath->hash mappings for a given path using a given algorithm up to a given depth.
-pub fn create_hashes<Wo, We>(path: &Path, ignored_files: BTreeSet<String>, algo: Algorithm, depth: Option<usize>, follow_symlinks: bool, jobs: usize,
-                             pb_out: Wo, pb_err: &mut We)
-                             -> BTreeMap<String, String>
-    where Wo: Write,
-          We: Write
+pub fn create_hashes<We>(
+    path: &Path,
+    ignored_files: BTreeSet<String>,
+    algo: Algorithm,
+    depth: Option<usize>,
+    follow_symlinks: bool,
+    jobs: usize,
+    pb_err: &mut We,
+) -> BTreeMap<String, String>
+where
+    We: Write,
 {
     let mut walkdir = WalkDir::new(path).follow_links(follow_symlinks);
     if let Some(depth) = depth {
@@ -73,28 +76,14 @@ pub fn create_hashes<Wo, We>(path: &Path, ignored_files: BTreeSet<String>, algo:
 
     if errored {
         writeln!(pb_err, "").unwrap();
+        panic!("Failed to create hash file");
     }
 
+    hashes.extend(hashes_f.into_iter().map(|(k, f)| match f.wait() {
+        Ok(result) => return (k, result),
+        Err(error) => panic!("Failed to hash file \"{}\": {:?}", k, error),
+    }));
 
-    let mut pb = ProgressBar::on(pb_out, hashes_f.len() as u64);
-    pb.set_width(Some(80));
-    pb.show_speed = false;
-    pb.show_tick = true;
-
-    hashes.extend(hashes_f.into_iter()
-        .map(|(k, f)| {
-            pb.message(&format!("{} ", k));
-            pb.inc();
-
-            match f.wait() {
-                Ok(result) => return (k, result),
-                Err(error) => panic!("Failed to hash file \"{}\": {:?}", k, error),
-            }
-        }));
-
-    pb.show_tick = false;
-    pb.tick();
-    pb.finish_print("");
     hashes
 }
 

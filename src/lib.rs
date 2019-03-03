@@ -32,7 +32,8 @@
 //! 1   - option parsing error
 //! 2   - hash lengths differ between selected and saved
 //! 3   - failed to parse hashes file
-//! N+3 - N files didn't match
+//! 4   - removed file exists
+//! N+4 - N files didn't match
 //! ```
 //!
 //! ## SYNOPSIS
@@ -193,37 +194,35 @@
 //!   File "file" matches
 //! ```
 
-
+extern crate crc;
 extern crate md5;
 extern crate md6;
-extern crate pbr;
-extern crate crc;
 #[macro_use]
 extern crate clap;
-extern crate crc8;
-extern crate crc16;
 extern crate blake;
+extern crate blake2_rfc;
+extern crate crc16;
+extern crate crc8;
+extern crate futures;
+extern crate num_cpus;
 extern crate regex;
 extern crate shaman;
-extern crate futures;
-extern crate walkdir;
-extern crate num_cpus;
 extern crate tabwriter;
-extern crate blake2_rfc;
+extern crate walkdir;
 #[macro_use]
 extern crate lazy_static;
-extern crate tiny_keccak;
 extern crate futures_cpupool;
+extern crate tiny_keccak;
 
+mod algorithms;
 mod error;
 mod hashing;
 mod options;
-mod algorithms;
 
 pub mod ops;
 pub mod util;
 
-pub use hashing::*;
-pub use error::Error;
-pub use options::Options;
 pub use algorithms::Algorithm;
+pub use error::Error;
+pub use hashing::*;
+pub use options::Options;

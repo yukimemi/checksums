@@ -9,6 +9,8 @@ pub enum Error {
     HashLengthDiffers,
     /// Parsing the hashes file failed.
     HashesFileParsingFailure,
+    /// Different number of files.
+    DifferentNumberOfFiles,
     /// The specified amount of files do not match.
     NFilesDiffer(i32),
 }
@@ -21,7 +23,8 @@ impl Error {
             Error::OptionParsingError => 1,
             Error::HashLengthDiffers => 2,
             Error::HashesFileParsingFailure => 3,
-            Error::NFilesDiffer(i) => i + 3,
+            Error::DifferentNumberOfFiles => 4,
+            Error::NFilesDiffer(i) => i + 4,
         }
     }
 }
@@ -33,7 +36,8 @@ impl From<i32> for Error {
             1 => Error::OptionParsingError,
             2 => Error::HashLengthDiffers,
             3 => Error::HashesFileParsingFailure,
-            i => Error::NFilesDiffer(i - 3),
+            4 => Error::DifferentNumberOfFiles,
+            i => Error::NFilesDiffer(i - 4),
         }
     }
 }
