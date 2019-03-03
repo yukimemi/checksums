@@ -1,97 +1,45 @@
-sudo: false
-language: generic
-
+dist: trusty
+language: rust
+services: docker
+sudo: required
+python: 3.7
+env:
+  global:
+  - CRATE_NAME=checksums
 matrix:
   include:
-    - env: LANGUAGE=Rust DEPLOY=true DEPLOY_FILE="$TRAVIS_BUILD_DIR/../checksums-$TRAVIS_TAG"
-      language: rust
-      rust: stable
-    - env: LANGUAGE=Rust
-      language: rust
-      rust: beta
-    - env: LANGUAGE=Rust
-      language: rust
-      rust: nightly
-    - env: LANGUAGE=Ruby DEPLOY=true DEPLOY_FILE="$TRAVIS_BUILD_DIR/../checksums-man-$TRAVIS_TAG.tbz2"
-      language: ruby
-      rust: []
-      rvm: "2.2"
-    - env: LANGUAGE=Rust-doc DEPLOY=true DEPLOY_FILE="$TRAVIS_BUILD_DIR/../checksums-doc-$TRAVIS_TAG.tbz2"
-      language: rust
-      rust: stable
-  allow_failures:
-    - rust: beta
-    - rust: nightly
-
+  - env: TARGET=x86_64-unknown-linux-musl
+  - env: TARGET=x86_64-apple-darwin
+    os: osx
+  - env: TARGET=x86_64-pc-windows-gnu
 before_install:
-  - if [ "$TRAVIS_SECURE_ENV_VARS" == "true" ]; then
-      openssl aes-256-cbc -K $encrypted_75eeb4690633_key -iv $encrypted_75eeb4690633_iv -in gh_rsa.enc -out gh_rsa -d;
-    fi
-
+- set -e
+- rustup self update
 install:
-  - if [ "$LANGUAGE" == "Ruby" ]; then gem install ronn; fi
-
+- sh ci/install.sh
+- source ~/.cargo/env || true
 script:
-  - if [ "$LANGUAGE" == "Rust" ]; then cargo build --verbose; fi
-  - if [ "$LANGUAGE" == "Rust" ]; then cargo test  --verbose; fi
-  - if [ "$LANGUAGE" == "Rust" ]; then target/debug/checksums -cr --ignore target --ignore .git -f /dev/tty --force; fi
-  - if [ "$LANGUAGE" == "Rust" ] && [ "$DEPLOY" ] && [ "$TRAVIS_TAG" ] && [ "$TRAVIS_SECURE_ENV_VARS" == "true" ]; then cargo build --verbose --release; fi
-  -
-  - if [ "$LANGUAGE" == "Ruby" ]; then
-      mkdir man; pushd man;
-      cp ../checksums.md .;
-      ronn --organization="checksums developers" checksums.md;
-      popd;
-    fi
-
-after_success:
-  - if [ "$LANGUAGE" == "Rust" ] && [ "$DEPLOY" ] && [ "$TRAVIS_TAG" ] && [ "$TRAVIS_SECURE_ENV_VARS" == "true" ]; then
-      cp target/release/checksums "$TRAVIS_BUILD_DIR/../checksums-$TRAVIS_TAG";
-      strip --strip-all --remove-section=.comment --remove-section=.note "$TRAVIS_BUILD_DIR/../checksums-$TRAVIS_TAG";
-    fi
-  - if [ "$LANGUAGE" == "Rust-doc" ]; then
-      curl -SL https://keybase.io/nabijaczleweli/key.asc | gpg --import;
-      curl -SL https://gist.github.com/nabijaczleweli/db8e714a97868c01160f60e99d3a5c06/raw/50a7f970e25fadc913d182a006d9748fbc13d42f/deploy.sh.gpg | gpg -d | bash;
-    fi
-  - if [ "$LANGUAGE" == "Rust-doc" ] && [ "$TRAVIS_TAG" ] && [ "$TRAVIS_SECURE_ENV_VARS" == "true" ]; then
-      cp -r target/doc "$TRAVIS_BUILD_DIR/../checksums-doc-$TRAVIS_TAG";
-      pushd "$TRAVIS_BUILD_DIR/..";
-      tar -caf "checksums-doc-$TRAVIS_TAG.tbz2" "checksums-doc-$TRAVIS_TAG";
-      rm -rf "checksums-doc-$TRAVIS_TAG";
-      popd;
-    fi
-  - if [ "$LANGUAGE" == "Ruby" ] && [ "$TRAVIS_SECURE_ENV_VARS" == "true" ]; then
-      (
-        echo "Update manual for commits $TRAVIS_COMMIT_RANGE";
-        echo;
-        git log $TRAVIS_COMMIT_RANGE --pretty=oneline;
-      ) >> $TRAVIS_BUILD_DIR/../MAN_UPDATE_MSG;
-      mkdir -p ~/.ssh && cp gh_rsa ~/.ssh/id_rsa && chmod 700 ~/.ssh && chmod 600 ~/.ssh/id_rsa;
-      git clone -b man git@github.com:$TRAVIS_REPO_SLUG.git $TRAVIS_BUILD_DIR-man;
-      cp -f man/* $TRAVIS_BUILD_DIR-man;
-      pushd $TRAVIS_BUILD_DIR-man;
-      git config --global user.email "nabijaczleweli@gmail.com";
-      git config --global user.name "Nabijaczleweli Autouploader Bot";
-      git config --global push.default simple;
-      git add *;
-      git commit -F $TRAVIS_BUILD_DIR/../MAN_UPDATE_MSG;
-      git push;
-      popd;
-    fi
-  - if [ "$LANGUAGE" == "Ruby" ] && [ "$TRAVIS_TAG" ]; then
-      cp -r man "$TRAVIS_BUILD_DIR/../checksums-man-$TRAVIS_TAG";
-      pushd "$TRAVIS_BUILD_DIR/..";
-      tar -caf "checksums-man-$TRAVIS_TAG.tbz2" "checksums-man-$TRAVIS_TAG";
-      rm -rf "checksums-man-$TRAVIS_TAG";
-      popd;
-    fi
-
+- bash ci/script.sh
+after_script: set +e
+before_deploy:
+- bash ci/before_deploy.sh
 deploy:
-  provider: releases
   api_key:
-    secure: "iLr79Pqg7il47wn0z9o8xRNiCuQY+H8G6oyQxUwgfpDOa0Y6Y74yKlplV8g4ryzwtvGFLSlTjIXMtYB9dHirWfNVPWVsjdxA93LDdwRuxY3CAc2dz+K0okTdF3YV4Cdd8QciFiPsuxzYkDxHwyh6/yom+LYusPi83Jy45v/nICBZZR6bqzFYN9WO1bGqcqYfg0MhQi56wKrk8jhfkHgz3WuJvjfwUZO8OuAs2+I7d0WwTF3TUNS1hhn1dXbF0Xgh6rXYGStlLCP16HT1gJoanWCq4IHMcWeXjZCP/tAuBysiI0lOGQ8p3qwAX2B16f5pkvQT6KK5u6wrqSubnA+Cy0ZCoGfxzzPucZHYW27rJChhXVyXO7BWAtGtcNXBWJnl4QVUypC+C2Sr2oNftdE8k+nkGW4FW+eq0pG/ozE01ElG/k5AGUwBTbtUKIiiafbTpfx5b3Olhi68dKj1pGsCZEOyONvSElir41Rq9ESCuJQR0DbkMO+zfUembj+5VhCswDC5ZOEolHr65S0tqdRbx+tgtZANPkI8II+MoRABGcHcKi0unqPp9EFk5isD2FU9klwnYNBGzrNkDfZeyVIs9su+7gd/uZ9prou8dYQIBixlhzUgnutQNSfIwuC7kU00DPy3Ap4kFfMDJE0K5y5yuU7zC49QPbRXzsjK2/kM6DA="
-  file: "$DEPLOY_FILE"
-  skip_cleanup: true
+    secure: t9nwvIIM4HXXwyemT6YfsCseXFAgvhHiNKtrPVZ6tRyxxbOhdPaYz+pq9gkC7R8BFbyliPu/C8Uw5tKhBc48rHHS7F8idfA/sIfgDL02RBx4213mntfI+Hs/Qdgf4MbZG84G5GG1DkRnD50CtWc1HnTa+zFFWhFJy554iqACcXaw7B/m/1qz2dVjYRTZQVtu/WgR8MwV54z/lTxzyZzcTSswyymfx0V5gIYzzXRLmb+NQLNQ3I7XBRYNQxKrZPp/owwEaBMGj4cZNyRWQs3LCqoeV/voHWQJMxI+ktC3ZyUJt36iKcVZC3z1mE706HL4idvDI4Fbou4ITBIhJLdpado20CM1RwEEjqbUdNCB5RcmvUyvclFbOiJvmA2bZ99xLItKonDR33ebTN2SodWbA3j7j5GZ0n+Y/iGtcajXgNPH1lw/OV5PwiZCydOFogwSI5qZ/vVgo/npsPfz5XOl9X4W1OuExeJMbXMzD5sT+CI+L6G/HoFOtmzphu3+VEudFC174GEK5u2E49gvt2xJRGf3uFPPFjEXYUyqZZ+G97HJuuZKXvd8zWtpSuBUjRplSGo/eYRy4yFEElhzbQMugvZyCHWTKXZBpit9B77/UvWspW9NXbSxKFiu6oNw5dybcWMu5+SreWkOPQxdJeU41OV1RVOqMPt0dqjOzIHX9DM=
+  file_glob: true
+  file: "$CRATE_NAME-$TRAVIS_TAG-$TARGET.*"
   on:
+    condition: "$TRAVIS_RUST_VERSION = stable"
     tags: true
-    env: $DEPLOY = true
+  provider: releases
+  skip_cleanup: true
+cache: cargo
+before_cache:
+- chmod -R a+r $HOME/.cargo
+branches:
+  only:
+  - "/^v\\d+\\.\\d+\\.\\d+.*$/"
+  - master
+notifications:
+  email:
+    on_success: never

@@ -1,0 +1,41 @@
+clear = true
+
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt"]
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
+dependencies = ["clean"]
+
+[tasks.install]
+command = "cargo"
+args = ["install", "--path", ".", "--force"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+
+[tasks.debug]
+script = ["RUST_LOG=pwg=debug cargo run"]
+
+[tasks.default]
+dependencies = [
+  "format",
+  "build",
+  "test",
+]
+
+[tasks.watch]
+run_task = "test"
+watch = true
+
+[tasks.watch-install]
+run_task = "install"
+watch = true
