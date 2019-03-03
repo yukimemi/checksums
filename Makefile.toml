@@ -39,3 +39,7 @@ watch = true
 [tasks.watch-install]
 run_task = "install"
 watch = true
+
+[tasks.watch-test]
+run_task = "test"
+watch = true
